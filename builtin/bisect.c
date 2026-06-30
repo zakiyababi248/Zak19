@@ -24,11 +24,12 @@ static GIT_PATH_FUNC(git_path_bisect_start, "BISECT_START")
 static GIT_PATH_FUNC(git_path_bisect_log, "BISECT_LOG")
 static GIT_PATH_FUNC(git_path_bisect_names, "BISECT_NAMES")
 static GIT_PATH_FUNC(git_path_bisect_first_parent, "BISECT_FIRST_PARENT")
+static GIT_PATH_FUNC(git_path_bisect_auto_reset, "BISECT_AUTO_RESET")
 static GIT_PATH_FUNC(git_path_bisect_run, "BISECT_RUN")
 
 #define BUILTIN_GIT_BISECT_START_USAGE \
 	N_("git bisect start [--term-(bad|new)=<term-new> --term-(good|old)=<term-old>]\n" \
-	   "                 [--no-checkout] [--first-parent] [<bad> [<good>...]] [--] [<pathspec>...]")
+	   "                 [--no-checkout] [--first-parent] [--auto-reset] [<bad> [<good>...]] [--] [<pathspec>...]")
 #define BUILTIN_GIT_BISECT_BAD_USAGE \
 	N_("git bisect (bad|new|<term-new>) [<rev>]")
 #define BUILTIN_GIT_BISECT_GOOD_USAGE \
@@ -48,7 +49,7 @@ static GIT_PATH_FUNC(git_path_bisect_run, "BISECT_RUN")
 #define BUILTIN_GIT_BISECT_LOG_USAGE \
 	"git bisect log"
 #define BUILTIN_GIT_BISECT_RUN_USAGE \
-	N_("git bisect run <cmd> [<arg>...]")
+	N_("git bisect run [--auto-reset] <cmd> [<arg>...]")
 #define BUILTIN_GIT_BISECT_HELP_USAGE \
 	"git bisect help"
 
@@ -178,17 +179,13 @@ static int append_to_file(const char *path, const char *format, ...)
 	return res;
 }
 
-static int print_file_to_stdout(const char *path)
+static int print_fd_to_stdout(int fd)
 {
-	int fd = open(path, O_RDONLY);
-	int ret = 0;
-
-	if (fd < 0)
-		return error_errno(_("cannot open file '%s' for reading"), path);
+	if (lseek(fd, 0, SEEK_SET) < 0)
+		return error_errno(_("failed to rewind BISECT_RUN output"));
 	if (copy_fd(fd, 1) < 0)
-		ret = error_errno(_("failed to read '%s'"), path);
-	close(fd);
-	return ret;
+		return error_errno(_("failed to read BISECT_RUN output"));
+	return 0;
 }
 
 static int check_term_format(const char *term, const char *orig_term)
@@ -234,7 +231,7 @@ static int write_terms(const char *bad, const char *good)
 	return res;
 }
 
-static int bisect_reset(const char *commit)
+static int bisect_reset(const char *commit, int quiet)
 {
 	struct strbuf branch = STRBUF_INIT;
 
@@ -255,8 +252,10 @@ static int bisect_reset(const char *commit)
 		struct child_process cmd = CHILD_PROCESS_INIT;
 
 		cmd.git_cmd = 1;
-		strvec_pushl(&cmd.args, "checkout", "--ignore-other-worktrees",
-				branch.buf, "--", NULL);
+		strvec_pushl(&cmd.args, "checkout", "--ignore-other-worktrees", NULL);
+		if (quiet)
+			strvec_push(&cmd.args, "--quiet");
+		strvec_pushl(&cmd.args, branch.buf, "--", NULL);
 		if (run_command(&cmd)) {
 			error(_("could not check out original"
 				" HEAD '%s'. Try 'git bisect"
@@ -690,6 +689,8 @@ static enum bisect_error bisect_next(struct bisect_terms *terms, const char *pre
 
 	if (res == BISECT_INTERNAL_SUCCESS_1ST_BAD_FOUND) {
 		res = bisect_successful(terms);
+		if (!res && !is_empty_or_missing_file(git_path_bisect_auto_reset()))
+			res = bisect_reset(NULL, 1);
 		return res ? res : BISECT_INTERNAL_SUCCESS_1ST_BAD_FOUND;
 	} else if (res == BISECT_ONLY_SKIPPED_LEFT) {
 		res = bisect_skipped_commits(terms);
@@ -713,6 +714,7 @@ static enum bisect_error bisect_start(struct bisect_terms *terms, int argc,
 {
 	int no_checkout = 0;
 	int first_parent_only = 0;
+	int auto_reset = 0;
 	int i, has_double_dash = 0, must_write_terms = 0, bad_seen = 0;
 	int flags, pathspec_pos;
 	enum bisect_error res = BISECT_OK;
@@ -745,6 +747,8 @@ static enum bisect_error bisect_start(struct bisect_terms *terms, int argc,
 			no_checkout = 1;
 		} else if (!strcmp(arg, "--first-parent")) {
 			first_parent_only = 1;
+		} else if (!strcmp(arg, "--auto-reset")) {
+			auto_reset = 1;
 		} else if (!strcmp(arg, "--term-good") ||
 			 !strcmp(arg, "--term-old")) {
 			i++;
@@ -858,6 +862,9 @@ static enum bisect_error bisect_start(struct bisect_terms *terms, int argc,
 
 	if (first_parent_only)
 		write_file(git_path_bisect_first_parent(), "\n");
+
+	if (auto_reset)
+		write_file(git_path_bisect_auto_reset(), "\n");
 
 	if (no_checkout) {
 		if (repo_get_oid(the_repository, start_head.buf, &oid) < 0) {
@@ -1089,7 +1096,7 @@ static enum bisect_error bisect_replay(struct bisect_terms *terms, const char *f
 	if (is_empty_or_missing_file(filename))
 		return error(_("cannot read file '%s' for replaying"), filename);
 
-	if (bisect_reset(NULL))
+	if (bisect_reset(NULL, 0))
 		return BISECT_FAILED;
 
 	fp = fopen(filename, "r");
@@ -1244,6 +1251,12 @@ static int bisect_run(struct bisect_terms *terms, int argc, const char **argv)
 	if (bisect_next_check(terms, NULL))
 		return BISECT_FAILED;
 
+	if (argc && !strcmp(argv[0], "--auto-reset")) {
+		write_file(git_path_bisect_auto_reset(), "\n");
+		argc--;
+		argv++;
+	}
+
 	if (!argc) {
 		error(_("bisect run failed: no command provided."));
 		return BISECT_FAILED;
@@ -1291,7 +1304,7 @@ static int bisect_run(struct bisect_terms *terms, int argc, const char **argv)
 		else
 			new_state = terms->term_bad;
 
-		temporary_stdout_fd = open(git_path_bisect_run(), O_CREAT | O_WRONLY | O_TRUNC, 0666);
+		temporary_stdout_fd = open(git_path_bisect_run(), O_CREAT | O_RDWR | O_TRUNC, 0666);
 
 		if (temporary_stdout_fd < 0) {
 			res = error_errno(_("cannot open file '%s' for writing"), git_path_bisect_run());
@@ -1307,9 +1320,9 @@ static int bisect_run(struct bisect_terms *terms, int argc, const char **argv)
 		fflush(stdout);
 		dup2(saved_stdout, 1);
 		close(saved_stdout);
-		close(temporary_stdout_fd);
 
-		print_file_to_stdout(git_path_bisect_run());
+		print_fd_to_stdout(temporary_stdout_fd);
+		close(temporary_stdout_fd);
 
 		if (res == BISECT_ONLY_SKIPPED_LEFT)
 			error(_("bisect run cannot continue any more"));
@@ -1338,7 +1351,7 @@ static int cmd_bisect__reset(int argc, const char **argv, const char *prefix UNU
 	if (argc > 1)
 		return error(_("'%s' requires either no argument or a commit"),
 			     "git bisect reset");
-	return bisect_reset(argc ? argv[0] : NULL);
+	return bisect_reset(argc ? argv[0] : NULL, 0);
 }
 
 static int cmd_bisect__terms(int argc, const char **argv, const char *prefix UNUSED,
