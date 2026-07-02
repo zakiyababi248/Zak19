@@ -1,0 +1,278 @@
+// Source code is decompiled from a .class file using FernFlower decompiler (from Intellij IDEA).
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.LayoutManager;
+import java.awt.RenderingHints;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.Random;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+public class BouncingBall extends JPanel implements ActionListener {
+
+   private static final int WIDTH = 900;
+   private static final int HEIGHT = 680;
+   private final Timer timer;
+   private final JButton yesButton = new JButton("Yes");
+   private final JButton noButton = new JButton("No");
+   private final Random random = new Random();
+   private String message = "First give options: Yes or No.";
+   private String soundText = "";
+   private int stage = 0;
+   private int tick = 0;
+   private boolean crying = false;
+   private boolean success = false;
+   private boolean noJumpMode = false;
+
+   public BouncingBall() {
+      this.setPreferredSize(new Dimension(900, 680));
+      this.setLayout((LayoutManager)null);
+      this.setBackground(new Color(250, 245, 235));
+      this.yesButton.setBounds(200, 520, 130, 55);
+      this.yesButton.setFont(new Font("Segoe UI", 1, 22));
+      this.yesButton.setBackground(new Color(130, 190, 255));
+      this.yesButton.setForeground(Color.WHITE);
+      this.yesButton.setFocusPainted(false);
+      this.yesButton.addActionListener((var1) -> this.handleYes());
+      this.add(this.yesButton);
+      this.noButton.setBounds(560, 520, 130, 55);
+      this.noButton.setFont(new Font("Segoe UI", 1, 22));
+      this.noButton.setBackground(new Color(255, 140, 145));
+      this.noButton.setForeground(Color.WHITE);
+      this.noButton.setFocusPainted(false);
+      this.noButton.addActionListener((var1) -> this.handleNo());
+      this.noButton.addMouseListener(new MouseAdapter() {
+         public void mouseEntered(MouseEvent var1) {
+            if (BouncingBall.this.noJumpMode && !BouncingBall.this.success) {
+               BouncingBall.this.moveNoButton();
+            }
+
+         }
+      });
+      this.add(this.noButton);
+      this.timer = new Timer(18, this);
+      this.timer.start();
+   }
+
+   private void handleYes() {
+      if (!this.success) {
+         this.success = true;
+         this.crying = false;
+         this.noJumpMode = false;
+         this.message = "Yes! Thank you, I love you!";
+         this.soundText = "Yay! \ud83d\udc96";
+         this.repaint();
+      }
+   }
+
+   private void handleNo() {
+      if (!this.success) {
+         if (this.stage == 0) {
+            this.stage = 1;
+            this.crying = true;
+            this.noJumpMode = false;
+            this.message = "Why no? Please think once more.";
+            this.soundText = "sniff...";
+         } else if (this.stage == 1) {
+            this.stage = 2;
+            this.crying = true;
+            this.noJumpMode = true;
+            this.message = "Bubu I love u. Click yes, please.";
+            this.soundText = "Boing! Nooo!";
+            this.moveNoButton();
+         } else {
+            this.crying = true;
+            this.noJumpMode = true;
+            this.message = "Please click yes, I am here waiting.";
+            this.soundText = "Hop hop BOING!";
+            this.moveNoButton();
+         }
+
+         this.repaint();
+      }
+   }
+
+   private void moveNoButton() {
+      byte var1 = 20;
+      int var2 = this.noButton.getWidth();
+      int var3 = this.noButton.getHeight();
+      int var4 = 900 - var2 - var1;
+      int var5 = 680 - var3 - var1;
+      int var8 = 0;
+
+      int var6;
+      int var7;
+      do {
+         var6 = var1 + this.random.nextInt(Math.max(1, var4 - var1 + 1));
+         var7 = var1 + 220 + this.random.nextInt(Math.max(1, var5 - 220 - var1 + 1));
+         ++var8;
+      } while(var8 < 7 && Math.hypot((double)(var6 - this.noButton.getX()), (double)(var7 - this.noButton.getY())) < (double)240.0F);
+
+      this.noButton.setLocation(var6, var7);
+   }
+
+   protected void paintComponent(Graphics var1) {
+      super.paintComponent(var1);
+      Graphics2D var2 = (Graphics2D)var1.create();
+      var2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      this.drawBackground(var2);
+      this.drawMessage(var2);
+      this.drawTeddyBear(var2);
+      this.drawButtonsHint(var2);
+      var2.dispose();
+   }
+
+   private void drawBackground(Graphics2D var1) {
+      GradientPaint var2 = new GradientPaint(0.0F, 0.0F, new Color(255, 240, 230), 0.0F, 680.0F, new Color(235, 225, 245));
+      var1.setPaint(var2);
+      var1.fillRect(0, 0, 900, 680);
+      var1.setColor(new Color(255, 255, 255, 180));
+
+      for(int var3 = 0; var3 < 6; ++var3) {
+         int var4 = 80 + var3 * 20;
+         var1.fillOval(50 + var3 * 120, 40, var4, var4 / 2);
+      }
+
+      this.drawBackgroundHearts(var1);
+   }
+
+   private void drawBackgroundHearts(Graphics2D var1) {
+      var1.setColor(new Color(255, 135, 170, 140));
+      int[][] var2 = new int[][]{{100, 160, 14}, {180, 80, 10}, {260, 150, 12}, {360, 110, 16}, {430, 190, 12}, {520, 90, 10}, {620, 170, 14}, {720, 130, 12}, {800, 190, 10}};
+
+      for(int[] var6 : var2) {
+         int var7 = var6[0];
+         int var8 = var6[1];
+         int var9 = var6[2];
+         this.drawTinyHeart(var1, var7, var8, var9);
+      }
+
+   }
+
+   private void drawTinyHeart(Graphics2D var1, int var2, int var3, int var4) {
+      int var5 = var4 / 2;
+      int[] var6 = new int[]{var2, var2 - var5, var2 - var4, var2 - var5, var2, var2 + var5, var2 + var4, var2 + var5};
+      int[] var7 = new int[]{var3, var3 - var5, var3, var3 + var5, var3 + var4, var3 + var5, var3, var3 - var5};
+      var1.fillPolygon(var6, var7, var6.length);
+      var1.setColor(new Color(255, 255, 255, 120));
+      var1.fillOval(var2 - var4 / 2, var3 - var4 / 2, var4 / 2, var4 / 2);
+      var1.fillOval(var2, var3 - var4 / 2, var4 / 2, var4 / 2);
+      var1.setColor(new Color(255, 135, 170, 140));
+   }
+
+   private void drawMessage(Graphics2D var1) {
+      var1.setColor(new Color(55, 45, 70));
+      var1.setFont(new Font("Segoe UI", 1, 30));
+      var1.drawString(this.message, 60, 90);
+   }
+
+   private void drawWrappedString(Graphics2D var1, String var2, int var3, int var4, int var5, int var6) {
+      FontMetrics var7 = var1.getFontMetrics();
+      String[] var8 = var2.split(" ");
+      StringBuilder var9 = new StringBuilder();
+      int var10 = var4;
+
+      for(String var14 : var8) {
+         String var15 = var9.length() == 0 ? var14 : String.valueOf(var9) + " " + var14;
+         if (var7.stringWidth(var15) > var5 && var9.length() > 0) {
+            var1.drawString(var9.toString(), var3, var10);
+            var9 = new StringBuilder(var14);
+            var10 += var6;
+         } else {
+            var9 = new StringBuilder(var15);
+         }
+      }
+
+      if (var9.length() > 0) {
+         var1.drawString(var9.toString(), var3, var10);
+      }
+
+   }
+
+   private void drawTeddyBear(Graphics2D var1) {
+      short var2 = 450;
+      int var3 = (int)(Math.sin((double)this.tick * 0.08) * (double)8.0F);
+      short var4 = 220;
+      int var5 = var2 - var4 / 2;
+      int var6 = 220 + var3;
+      var1.setColor(new Color(205, 150, 100));
+      var1.fillOval(var5, var6, var4, var4);
+      var1.fillOval(var5 - 20, var6 + 20, 80, 80);
+      var1.fillOval(var5 + var4 - 60, var6 + 20, 80, 80);
+      var1.setColor(new Color(235, 200, 150));
+      var1.fillOval(var5 + 45, var6 + 60, 80, 80);
+      var1.fillOval(var5 + var4 - 125, var6 + 60, 80, 80);
+      var1.setColor(new Color(205, 150, 100));
+      var1.fillOval(var5 + 10, var6 + 40, 90, 90);
+      var1.fillOval(var5 + var4 - 100, var6 + 40, 90, 90);
+      var1.setColor(new Color(240, 210, 165));
+      var1.fillOval(var5 + 60, var6 + 80, 100, 100);
+      var1.setColor(Color.WHITE);
+      var1.fillOval(var2 - 45, var6 + 70, 40, 55);
+      var1.fillOval(var2 + 5, var6 + 70, 40, 55);
+      var1.setColor(new Color(65, 40, 20));
+      var1.fillOval(var2 - 35, var6 + 90, 18, 24);
+      var1.fillOval(var2 + 27, var6 + 90, 18, 24);
+      var1.setColor(new Color(80, 55, 20));
+      var1.setStroke(new BasicStroke(5.0F));
+      var1.drawArc(var2 - 20, var6 + 110, 40, 30, 190, 160);
+      var1.setColor(new Color(225, 145, 140));
+      var1.fillOval(var2 - 25, var6 + 110, 16, 10);
+      var1.fillOval(var2 + 9, var6 + 110, 16, 10);
+      if (this.crying) {
+         int var7 = this.tick / 8 % 28;
+         var1.setColor(new Color(140, 190, 255, 230));
+         var1.fillOval(var2 - 30, var6 + 80 + var7, 12, 28);
+         var1.fillOval(var2 + 30, var6 + 80 + var7, 12, 28);
+         var1.setColor(new Color(90, 130, 200));
+         var1.setStroke(new BasicStroke(3.0F));
+         var1.drawLine(var2 - 24, var6 + 95 + var7, var2 - 24, var6 + 120 + var7);
+         var1.drawLine(var2 + 32, var6 + 95 + var7, var2 + 32, var6 + 120 + var7);
+      }
+
+   }
+
+   private void drawButtonsHint(Graphics2D var1) {
+      if (!this.soundText.isEmpty()) {
+         var1.setColor(new Color(95, 55, 110, 180));
+         var1.setFont(new Font("Segoe UI", 1, 20));
+         var1.drawString(this.soundText, 280, 500);
+      }
+
+      if (!this.success && this.stage >= 2) {
+         var1.setColor(new Color(100, 60, 100, 120));
+         var1.setFont(new Font("Segoe UI", 2, 18));
+         var1.drawString("The No button is jumping!", 320, 530);
+      }
+
+   }
+
+   public void actionPerformed(ActionEvent var1) {
+      ++this.tick;
+      this.repaint();
+   }
+
+   public static void main(String[] var0) {
+      SwingUtilities.invokeLater(() -> {
+         JFrame var0 = new JFrame("Teddy Bear Choice");
+         var0.setDefaultCloseOperation(3);
+         var0.setContentPane(new BouncingBall());
+         var0.pack();
+         var0.setLocationRelativeTo((Component)null);
+         var0.setResizable(false);
+         var0.setVisible(true);
+      });
+   }
+}
